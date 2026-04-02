@@ -183,3 +183,8 @@ FROM prod AS test
 USER root
 RUN chown -R fidesuser:fidesgroup /opt/fides
 USER fidesuser
+
+############################
+## Default deploy target ##
+############################
+FROM prod AS deploy
