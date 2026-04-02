@@ -118,8 +118,7 @@ COPY clients/fides-js/package.json ./fides-js/package.json
 COPY clients/admin-ui/package.json ./admin-ui/package.json
 COPY clients/privacy-center/package.json ./privacy-center/package.json
 
-RUN --mount=type=cache,id=fides-npm-cache,target=/root/.npm \
-    npm ci
+RUN npm ci
 
 COPY clients/ .
 
@@ -136,13 +135,9 @@ ENV IS_TEST=$IS_TEST
 COPY --from=backend /fides/version.json ./version.json
 
 # Builds and exports admin-ui
-RUN --mount=type=cache,id=fides-frontend-node-cache,target=/fides/clients/node_modules/.cache \
-    --mount=type=cache,id=fides-admin-ui-next-cache,target=/fides/clients/admin-ui/.next/cache \
-    npm run export-admin-ui
+RUN npm run export-admin-ui
 # Builds privacy-center
-RUN --mount=type=cache,id=fides-frontend-node-cache,target=/fides/clients/node_modules/.cache \
-    --mount=type=cache,id=fides-privacy-center-next-cache,target=/fides/clients/privacy-center/.next/cache \
-    npm run build-privacy-center
+RUN npm run build-privacy-center
 
 ###############################
 ## Production Privacy Center ##
