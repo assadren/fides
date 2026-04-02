@@ -1,0 +1,122 @@
+[railway]
+name = "fides"
+runtime = "docker"
+
+[ railway.validate ]
+ignoreWarnings = ["MULTIPLE_ASSIGNS"]
+
+# PostgreSQL Database
+[services.fides-db]
+image = "postgres:16-alpine"
+internalPort = 5432
+[Services.Fides-db.healthcheck]
+command = "pg_isready -U postgres"
+interval = 10
+maxRetries = 5
+
+[[services.fides-db.volumes]]
+mountPath = "/var/lib/postgresql/data"
+size = "1GiB"
+
+[services.fides-db.environ]
+POSTGRES_USER = "postgres"
+POSTGRES_PASSWORD = "${POSTGRES_PASSWORD}"
+POSTGRES_DB = "fides"
+
+# Redis Cache
+[services.redis]
+image = "redis:7-alpine"
+internalPort = 6379
+[Services.Redis.healthcheck]
+command = "redis-cli ping"
+interval = 10
+maxRetries = 5
+
+[services.redis.environ]
+# No password for Redis on internal network
+
+# Fides API Server
+[services.fides-api]
+buildCommand = "uv pip install --python /opt/fides/bin/python -e . --no-deps"
+startCommand = "fides webserver"
+internalPort = 8080
+[Services.Fides-api.healthcheck]
+path = "/health"
+interval = 20
+maxRetries = 10
+
+[services.fides-api.environ]
+FIDES__CONFIG_PATH = "/fides/.fides/fides.toml"
+FIDES__DATABASE__SERVER = "fides-db"
+FIDES__DATABASE__PORT = "5432"
+FIDES__DATABASE__USER = "postgres"
+FIDES__DATABASE__PASSWORD = "${POSTGRES_PASSWORD}"
+FIDES__DATABASE__DB = "fides"
+FIDES__REDIS__HOST = "redis"
+FIDES__REDIS__PORT = "6379"
+FIDES__REDIS__PASSWORD = "${REDIS_PASSWORD}"
+FIDES__LOGGING__LEVEL = "INFO"
+FIDES__LOGGING__COLORIZE = "false"
+FIDES__USER__ANALYTICS_OPT_OUT = "true"
+FIDES__DEV_MODE = "false"
+
+[[services.fides-api.volumes]]
+mountPath = "/fides"
+
+# Celery Worker
+[services.worker]
+buildCommand = "uv pip install --python /opt/fides/bin/python -e . --no-deps"
+startCommand = "fides worker"
+[Services.Worker.healthcheck]
+command = "curl -f http://localhost:9001/"
+interval = 20
+maxRetries = 10
+
+[services.worker.environ]
+FIDES__CONFIG_PATH = "/fides/.fides/fides.toml"
+FIDES__DATABASE__SERVER = "fides-db"
+FIDES__DATABASE__PORT = "5432"
+FIDES__DATABASE__USER = "postgres"
+FIDES__DATABASE__PASSWORD = "${POSTGRES_PASSWORD}"
+FIDES__DATABASE__DB = "fides"
+FIDES__REDIS__HOST = "redis"
+FIDES__REDIS__PORT = "6379"
+FIDES__REDIS__PASSWORD = "${REDIS_PASSWORD}"
+FIDES__LOGGING__LEVEL = "INFO"
+FIDES__LOGGING__COLORIZE = "false"
+FIDES__USER__ANALYTICS_OPT_OUT = "true"
+FIDES__DEV_MODE = "false"
+
+[[services.worker.volumes]]
+mountPath = "/fides"
+
+# Fides Admin UI (Frontend)
+[services.fides-ui]
+dockerfilePath = "Dockerfile.railway"
+internalPort = 3000
+[Services.Fides-ui.healthcheck]
+path = "/"
+interval = 10
+maxRetries = 5
+
+[services.fides-ui.environ]
+NEXT_PUBLIC_FIDESCTL_API_SERVER = "http://fides-api:8080"
+NODE_ENV = "production"
+
+# Privacy Center
+[services.privacy-center]
+dockerfilePath = "Dockerfile.railway-pc"
+internalPort = 3001
+[Services.Privacy-center.healthcheck]
+path = "/"
+interval = 10
+maxRetries = 5
+
+[services.privacy-center.environ]
+NEXT_PUBLIC_FIDESCTL_API_SERVER = "http://fides-api:8080"
+NODE_ENV = "production"
+
+[nixpacks]
+# Python build configuration
+nodeVersion = "20"
+pythonVersion = "3.13"

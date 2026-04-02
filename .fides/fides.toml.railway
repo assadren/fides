@@ -1,0 +1,43 @@
+[database]
+server = "fides-db"
+user = "postgres"
+password = "OLMkv91j8DHiDAULnK5Lxx3kSCov30b3"
+port = "5432"
+db = "fides"
+load_samples = false
+
+[redis]
+host = "redis"
+password = "fides_redis_password_change_me"
+port = 6379
+db_index = 0
+
+[security]
+env = "prod"
+cors_origins = [ "http://localhost:8080", "http://localhost:3001", "http://localhost:3000" ]
+app_encryption_key = "OLMkv91j8DHiDAULnK5Lxx3kSCov30b3"
+oauth_root_client_id = "fidesadmin"
+oauth_root_client_secret = "fidesadminsecret_change_me"
+root_username = "root_user"
+root_password = "Testpassword1!_change_me"
+
+[execution]
+require_manual_request_approval = true
+
+[cli]
+server_host = "0.0.0.0"
+server_port = 8080
+
+[user]
+username = "root_user"
+password = "Testpassword1!_change_me"
+
+[logging]
+level = "INFO"
+log_pii = false
+
+[consent]
+tcf_enabled = false
+
+[redis_db]
+index = 0
