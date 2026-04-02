@@ -17,7 +17,7 @@ RUN npm ci
 
 COPY clients/ .
 
-RUN npm run build-admin-ui
+RUN npm run build --filter=admin-ui
 
 FROM node:20-alpine AS runner
 
