@@ -17,7 +17,7 @@ RUN npm ci
 
 COPY clients/ .
 
-RUN npm run build --filter=privacy-center
+RUN npx turbo run build --filter=privacy-center
 
 FROM node:20-alpine AS runner
 
