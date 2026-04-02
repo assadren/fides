@@ -74,8 +74,8 @@ WORKDIR /fides
 # Immediately flush to stdout, globally
 ENV PYTHONUNBUFFERED=TRUE
 
-# Reset the busted git cache
-RUN git rm --cached -r .
+# Reset the busted git cache when the build context includes git metadata
+RUN if [ -d .git ]; then git rm --cached -r .; fi
 
 # This is a required workaround due to: https://github.com/ethyca/fides/issues/2440
 RUN git config --global --add safe.directory /fides
