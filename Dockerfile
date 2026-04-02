@@ -123,9 +123,9 @@ RUN npm ci
 COPY clients/ .
 
 ####################
-## Built frontend ##
+## Built Admin UI ##
 ####################
-FROM frontend AS built_frontend
+FROM frontend AS built_admin_ui
 
 # IS_TEST enables test IDs in fides-js
 ARG IS_TEST=false
@@ -136,7 +136,17 @@ COPY --from=backend /fides/version.json ./version.json
 
 # Builds and exports admin-ui
 RUN npm run export-admin-ui
-# Builds privacy-center
+
+###########################
+## Built Privacy Center ##
+###########################
+FROM frontend AS built_privacy_center
+
+ARG IS_TEST=false
+ENV IS_TEST=$IS_TEST
+
+COPY --from=backend /fides/version.json ./version.json
+
 RUN npm run build-privacy-center
 
 ###############################
@@ -153,7 +163,7 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 USER nextjs
 
-COPY --from=built_frontend --chown=nextjs:nodejs /fides/clients .
+COPY --from=built_privacy_center --chown=nextjs:nodejs /fides/clients .
 WORKDIR /fides/clients/privacy-center
 
 EXPOSE 3000
@@ -166,7 +176,7 @@ CMD ["npm", "run", "start"]
 FROM backend AS prod
 
 # Copy frontend build over
-COPY --from=built_frontend /fides/clients/admin-ui/out/ /fides/src/fides/ui-build/static/admin
+COPY --from=built_admin_ui /fides/clients/admin-ui/out/ /fides/src/fides/ui-build/static/admin
 USER root
 # Build sdist with uv and install
 RUN cd /fides && uv build --sdist && \
