@@ -1,0 +1,68 @@
+# Dockerfile for Fides Celery Worker on Railway
+# Skips all frontend build stages to avoid timeout.
+
+ARG PYTHON_VERSION="3.13.11"
+
+#########################
+## Compile Python Deps ##
+#########################
+FROM python:${PYTHON_VERSION}-bookworm AS compile_image
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    curl g++ git gnupg gcc \
+    libssl-dev libffi-dev libkrb5-dev \
+    unixodbc unixodbc-dev \
+    freetds-dev freetds-bin \
+    python-dev-is-python3 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+ENV UV_COMPILE_BYTECODE=0
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv /root/.local/bin/uv /bin/uv
+COPY pyproject.toml uv.lock README.md ./
+RUN uv venv && uv pip install setuptools==80.10.2 wheel && uv sync --no-install-project --no-dev --extra all --locked
+
+##################
+## Backend Base ##
+##################
+FROM python:${PYTHON_VERSION}-slim-bookworm AS backend
+
+RUN addgroup --system --gid 1001 fidesgroup
+RUN adduser --system --uid 1001 --home /home/fidesuser fidesuser
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    curl git \
+    freetds-dev freetds-bin \
+    python-dev-is-python3 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=compile_image /build/.venv /opt/fides
+COPY --from=compile_image /bin/uv /bin/uv
+ENV PATH=/opt/fides/bin:$PATH
+ENV UV_PROJECT_ENVIRONMENT=/opt/fides
+
+USER fidesuser
+ENV USER=fidesuser
+
+COPY --chown=fidesuser:fidesgroup . /fides
+WORKDIR /fides
+
+ENV PYTHONUNBUFFERED=TRUE
+
+RUN if [ -d .git ]; then git rm --cached -r .; fi
+RUN git config --global --add safe.directory /fides
+
+# Build and install the package (no frontend needed for worker)
+USER root
+RUN cd /fides && uv build --sdist && \
+    uv pip install --python /opt/fides/bin/python dist/ethyca_fides-*.tar.gz
+USER fidesuser
+
+ENV RUNNING_IN_DOCKER=true
+
+CMD [ "fides", "worker" ]

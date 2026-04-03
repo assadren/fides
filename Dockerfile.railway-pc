@@ -5,7 +5,6 @@ RUN apk add --no-cache libc6-compat
 
 WORKDIR /fides/clients
 
-ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY clients/package.json clients/package-lock.json ./
@@ -13,11 +12,14 @@ COPY clients/fides-js/package.json ./fides-js/package.json
 COPY clients/admin-ui/package.json ./admin-ui/package.json
 COPY clients/privacy-center/package.json ./privacy-center/package.json
 
+# Install all deps (including dev) needed for building
 RUN npm ci
 
 COPY clients/ .
 
 RUN npx turbo run build --filter=privacy-center
+
+ENV NODE_ENV=production
 
 FROM node:20-alpine AS runner
 
