@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, List, Optional, Type
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
 from loguru import logger
 from sqlalchemy import Boolean, Column, DateTime, Enum, String, event
@@ -13,6 +13,7 @@ from sqlalchemy.orm import RelationshipProperty, Session, relationship
 from fides.api.common_exceptions import KeyOrNameAlreadyExists
 from fides.api.db.base_class import Base, FidesBase, JSONTypeOverride
 from fides.api.db.encryption_utils import encrypted_type
+from fides.api.models.connection_config_saas_history import ConnectionConfigSaaSHistory
 from fides.api.models.consent_automation import ConsentAutomation
 from fides.api.models.sql_models import System  # type: ignore[attr-defined]
 from fides.api.schemas.policy import ActionType
@@ -48,6 +49,7 @@ class ConnectionType(enum.Enum):
     entra = "entra"  # Microsoft Entra ID (Azure AD) for IDP discovery
     google_cloud_sql_mysql = "google_cloud_sql_mysql"
     google_cloud_sql_postgres = "google_cloud_sql_postgres"
+    google_workspace = "google_workspace"
     https = "https"
     manual = "manual"  # Deprecated - use manual_webhook instead
     manual_webhook = "manual_webhook"  # Runs upfront before the traversal
@@ -91,6 +93,7 @@ class ConnectionType(enum.Enum):
             ConnectionType.generic_erasure_email.value: "Generic Erasure Email",
             ConnectionType.google_cloud_sql_mysql.value: "Google Cloud SQL for MySQL",
             ConnectionType.google_cloud_sql_postgres.value: "Google Cloud SQL for Postgres",
+            ConnectionType.google_workspace.value: "Google Workspace",
             ConnectionType.https.value: "Policy Webhook",
             ConnectionType.manual_webhook.value: "Manual Process",
             ConnectionType.manual_task.value: "Manual Task",
@@ -141,6 +144,7 @@ class ConnectionType(enum.Enum):
             ConnectionType.generic_erasure_email.value: SystemType.email,
             ConnectionType.google_cloud_sql_mysql.value: SystemType.database,
             ConnectionType.google_cloud_sql_postgres.value: SystemType.database,
+            ConnectionType.google_workspace.value: SystemType.system,
             ConnectionType.https.value: SystemType.manual,
             ConnectionType.manual_webhook.value: SystemType.manual,
             ConnectionType.manual_task.value: SystemType.manual,
@@ -356,10 +360,20 @@ class ConnectionConfig(Base):
         self,
         db: Session,
         saas_config: SaaSConfig,
+        datasets: Optional[List[Dict[str, Any]]] = None,
+        record_history: bool = True,
     ) -> None:
         """
         Updates the SaaS config and initializes any empty secrets with
-        connector param default values if available (will not override any existing secrets)
+        connector param default values if available (will not override any existing secrets).
+
+        The optional ``datasets`` argument is a pre-fetched list of dataset dicts
+        associated with this connection.  Callers that want a history snapshot to
+        include dataset context should query DatasetConfig themselves and pass the
+        result here.
+
+        Set ``record_history=False`` to skip creating a ConnectionConfigSaaSHistory
+        snapshot (e.g. in tests or one-off migrations where audit history is not needed).
         """
         default_secrets = {
             connector_param.name: connector_param.default_value
@@ -369,6 +383,17 @@ class ConnectionConfig(Base):
         updated_secrets = {**default_secrets, **(self.secrets or {})}
         self.secrets = updated_secrets
         self.saas_config = saas_config.model_dump(mode="json")
+
+        if record_history:
+            ConnectionConfigSaaSHistory.create_snapshot(
+                db=db,
+                connection_config_id=self.id,
+                connection_key=self.key,
+                version=saas_config.version,
+                config=self.saas_config,
+                datasets=datasets,
+            )
+
         self.save(db)
 
     def update_test_status(

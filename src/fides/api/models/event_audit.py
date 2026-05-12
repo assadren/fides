@@ -1,13 +1,18 @@
 """EventAudit model and related enums for comprehensive audit logging."""
 
 from enum import Enum as EnumType
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, String, Text
+from sqlalchemy import Column, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.orm import relationship
 
 from fides.api.db.base_class import Base
 from fides.api.db.util import EnumColumn
+
+if TYPE_CHECKING:
+    from fides.api.models.client import ClientDetail
 
 
 class EventAuditType(str, EnumType):
@@ -40,6 +45,11 @@ class EventAuditType(str, EnumType):
     connection_secrets_created = "connection.secrets.created"
     connection_secrets_updated = "connection.secrets.updated"
 
+    # Dataset operations
+    dataset_created = "dataset.created"
+    dataset_updated = "dataset.updated"
+    dataset_deleted = "dataset.deleted"
+
     # Digest
     digest_execution_started = "digest.execution.started"
     digest_execution_completed = "digest.execution.completed"
@@ -56,6 +66,17 @@ class EventAuditType(str, EnumType):
     manual_task_instance_completed = "manual_task.instance.completed"
     manual_task_submission_created = "manual_task.submission.created"
     manual_task_submission_updated = "manual_task.submission.updated"
+
+    # Password Reset
+    password_reset_requested = "password_reset.requested"
+    password_reset_completed = "password_reset.completed"
+    password_reset_token_expired = "password_reset.token_expired"
+
+    # Correspondence
+    correspondence_sent = "correspondence.sent"
+    correspondence_delivered = "correspondence.delivered"
+    correspondence_bounced = "correspondence.bounced"
+    correspondence_reply_received = "correspondence.reply_received"
 
     # Privacy Assessment
     privacy_assessment_created = "privacy_assessment.created"
@@ -85,6 +106,16 @@ class EventAudit(Base):
     # Uses EventAuditType values but left as String to avoid future migrations
     event_type = Column(String, index=True, nullable=False)
     user_id = Column(String, nullable=True, index=True)
+    client_id = Column(
+        String, ForeignKey("client.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    client = relationship(
+        "ClientDetail",
+        lazy="selectin",
+        uselist=False,
+        foreign_keys=[client_id],
+        primaryjoin="EventAudit.client_id == ClientDetail.id",
+    )
 
     # Resource information
     resource_type = Column(String, nullable=True, index=True)

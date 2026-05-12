@@ -95,6 +95,12 @@ class PrivacyNoticeBase:
     enforcement_level = Column(EnumColumn(EnforcementLevel), nullable=False)
     framework = Column(String)
     gpp_field_mapping = Column(MutableList.as_mutable(JSONB), index=False, unique=False)
+    att_exempt = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        doc="If True, this notice is not controlled by ATT — it remains user-toggleable even when the user denies the iOS App Tracking Transparency prompt.",
+    )
     has_gpc_flag = Column(Boolean, nullable=False, default=False)
     internal_description = Column(String)  # Visible to internal users only
     name = Column(String, nullable=False)
@@ -227,7 +233,7 @@ class PrivacyNotice(PrivacyNoticeBase, Base):
         # For hierarchical children, we still need to check individual elements with LIKE
         # They have to match the data_use and the period separator, so we know it's a hierarchical descendant
         hierarchical_conditions = [
-            text(
+            text(  # nosemgrep: sql_injection_fstring -- f-string only constructs the bind param name (`:pattern_0`); actual value is bound via .bindparams()
                 f"EXISTS(SELECT 1 FROM unnest(data_uses) AS data_use WHERE data_use LIKE :pattern_{i})"
             ).bindparams(**{f"pattern_{i}": f"{data_use}.%"})
             for i, data_use in enumerate(data_uses)

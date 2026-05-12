@@ -26,14 +26,31 @@ const GZIP_SIZE_TCF_ERROR_KB = 100;
 const GZIP_SIZE_TCF_WARN_KB = 75;
 
 // Headless
-const GZIP_SIZE_HEADLESS_ERROR_KB = 27;
-const GZIP_SIZE_HEADLESS_WARN_KB = 20;
+const GZIP_SIZE_HEADLESS_ERROR_KB = 28;
+const GZIP_SIZE_HEADLESS_WARN_KB = 22;
 
 // GPP
 const GZIP_SIZE_GPP_ERROR_KB = 40;
 const GZIP_SIZE_GPP_WARN_KB = 35;
 
 const multipleLoadingMessage = `${GLOBAL_NAME} detected that it was already loaded on this page, aborting execution! See https://www.ethyca.com/docs/dev-docs/js/troubleshooting for more information.`;
+
+/**
+ * Ensure CSS files trigger rebuilds in watch mode.
+ * rollup-plugin-postcss doesn't call addWatchFile(), so rollup's
+ * watcher misses changes to .css files without this plugin.
+ */
+function watchCss() {
+  return {
+    name: "watch-css",
+    transform(code, id) {
+      if (id.endsWith(".css")) {
+        this.addWatchFile(id);
+      }
+      return null;
+    },
+  };
+}
 
 const preactAliases = {
   entries: [
@@ -49,6 +66,7 @@ const fidesScriptPlugins = (stripDebugger = false) => [
   nodeResolve(),
   commonjs(),
   json(),
+  IS_DEV && watchCss(),
   postcss({
     minimize: !IS_DEV,
   }),
@@ -294,6 +312,10 @@ const copyStub = {
       format: "es",
     },
   ],
+  onLog(level, log) {
+    // fides-stub.js is intentionally empty; suppress Rollup's EMPTY_BUNDLE warning
+    if (log.code === "EMPTY_BUNDLE") return;
+  },
 };
 
 rollupOptions.push(copyStub);

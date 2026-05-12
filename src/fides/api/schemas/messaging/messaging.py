@@ -92,9 +92,11 @@ class MessagingActionType(StrEnum):
     PRIVACY_REQUEST_REVIEW_DENY = "privacy_request_review_deny"
     PRIVACY_REQUEST_REVIEW_APPROVE = "privacy_request_review_approve"
     USER_INVITE = "user_invite"
+    PASSWORD_RESET = "password_reset"
     EXTERNAL_USER_WELCOME = "external_user_welcome"
     MANUAL_TASK_DIGEST = "manual_task_digest"
     TEST_MESSAGE = "test_message"
+    CORRESPONDENCE = "correspondence"
 
 
 CONFIGURABLE_MESSAGING_ACTION_TYPES: Tuple[str, ...] = (
@@ -216,6 +218,14 @@ class UserInviteBodyParams(BaseModel):
     invite_code: str
 
 
+class PasswordResetBodyParams(BaseModel):
+    """Body params required to send a password reset email"""
+
+    username: str
+    reset_token: str
+    ttl_minutes: int
+
+
 class ExternalUserWelcomeBodyParams(BaseModel):
     """Body params required to send a welcome email to external users"""
 
@@ -255,6 +265,7 @@ class FidesopsMessage(
             ErasureRequestBodyParams,
             ErrorNotificationBodyParams,
             UserInviteBodyParams,
+            PasswordResetBodyParams,
             ExternalUserWelcomeBodyParams,
         ]
     ] = None
@@ -274,6 +285,7 @@ class FidesopsMessage(
             MessagingActionType.MESSAGE_ERASURE_REQUEST_FULFILLMENT: ErasureRequestBodyParams,
             MessagingActionType.PRIVACY_REQUEST_ERROR_NOTIFICATION: ErrorNotificationBodyParams,
             MessagingActionType.USER_INVITE: UserInviteBodyParams,
+            MessagingActionType.PASSWORD_RESET: PasswordResetBodyParams,
             MessagingActionType.EXTERNAL_USER_WELCOME: ExternalUserWelcomeBodyParams,
             MessagingActionType.MANUAL_TASK_DIGEST: ManualTaskDigestBodyParams,
         }
@@ -522,6 +534,7 @@ class UserEmailInviteStatus(BaseModel):
 class MessagingTemplateWithPropertiesBase(BaseModel):
     id: str
     type: str
+    label: str
     is_enabled: bool
     properties: Optional[List[MinimalProperty]] = None
 
@@ -530,6 +543,7 @@ class MessagingTemplateWithPropertiesBase(BaseModel):
 
 class MessagingTemplateDefault(BaseModel):
     type: str
+    label: str
     is_enabled: bool
     content: Dict[str, Any] = Field(
         examples=[
@@ -559,6 +573,7 @@ class MessagingTemplateWithPropertiesDetail(MessagingTemplateWithPropertiesBase)
 
 
 class MessagingTemplateWithPropertiesBodyParams(BaseModel):
+    label: str | None = Field(None, min_length=1)
     content: Dict[str, Any] = Field(
         examples=[
             {
@@ -572,6 +587,7 @@ class MessagingTemplateWithPropertiesBodyParams(BaseModel):
 
 
 class MessagingTemplateWithPropertiesPatchBodyParams(BaseModel):
+    label: str | None = Field(None, min_length=1)
     content: Optional[Dict[str, Any]] = Field(
         None,
         examples=[

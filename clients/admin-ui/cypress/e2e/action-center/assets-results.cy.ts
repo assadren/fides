@@ -7,9 +7,9 @@ import {
 } from "cypress/support/stubs";
 
 import { ACTION_CENTER_ROUTE } from "~/features/common/nav/routes";
-import { MONITOR_TYPES } from "~/features/data-discovery-and-detection/action-center/utils/getMonitorType";
+import { APIMonitorType } from "~/types/api/models/APIMonitorType";
 
-const WEB_MONITOR_ROUTE = `${ACTION_CENTER_ROUTE}/${MONITOR_TYPES.WEBSITE}`;
+const WEB_MONITOR_ROUTE = `${ACTION_CENTER_ROUTE}/${APIMonitorType.WEBSITE}`;
 
 describe("Action center Asset Results", () => {
   beforeEach(() => {
@@ -142,10 +142,6 @@ describe("Action center Asset Results", () => {
         "success",
         'Browser request "destination" has been assigned to Fidesctl System.',
       );
-
-      // Wait for previous UI animations to reset or Cypress chokes on the next part
-      // eslint-disable-next-line cypress/no-unnecessary-waiting
-      cy.wait(100);
 
       // Now test with search
       cy.getAntTableRow(rowUrns[2]).within(() => {

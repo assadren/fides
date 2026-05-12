@@ -4,7 +4,7 @@
 
 from copy import deepcopy
 from typing import Dict, Optional, cast
-from urllib.parse import quote, quote_plus, urlencode
+from urllib.parse import quote, quote_plus, unquote_plus, urlencode
 
 from pydantic import (
     Field,
@@ -142,6 +142,12 @@ class DatabaseSettings(FidesSettings):
         default=True,
         description="If true, the engine will pre-ping connections to ensure they are still valid before using them.",
     )
+    healthcheck_query_timeout: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=10.0,
+        description="Timeout in seconds for database healthcheck queries on the /health/database endpoint.",
+    )
     test_db: str = Field(
         default="default_test_db",
         description="Used instead of the 'db' value when the FIDES_TEST_MODE environment variable is set to True. Avoids overwriting production data.",
@@ -155,6 +161,20 @@ class DatabaseSettings(FidesSettings):
         default={},  # Can't use the default_factory since it breaks docs generation
         description="Additional connection parameters used when connecting to the application database.",
     )
+    migration_role: Optional[str] = Field(
+        default=None,
+        description="If set, Fides will execute SET ROLE <migration_role> before running Alembic migrations. Use this when multiple DB login users (e.g. during blue-green password rotation) share a common permissions role — ensures all migrated objects are owned by that shared role rather than the individual login user.",
+    )
+
+    @field_validator("migration_role", mode="before")
+    @classmethod
+    def validate_migration_role(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            stripped = v.strip()
+            if not stripped:
+                raise ValueError("migration_role must be a non-empty string or None")
+            return stripped
+        return v
 
     # These must be at the end because they require other values to construct
     sqlalchemy_database_uri: str = Field(
@@ -254,6 +274,18 @@ class DatabaseSettings(FidesSettings):
         if value and isinstance(value, str):
             return quote_plus(value)
         return value
+
+    @property
+    def raw_password(self) -> str:
+        """Return password unescaped for direct driver use (psycopg2/asyncpg)."""
+        return unquote_plus(self.password)
+
+    @property
+    def raw_readonly_password(self) -> Optional[str]:
+        """Return readonly password unescaped for direct driver use."""
+        if self.readonly_password:
+            return unquote_plus(self.readonly_password)
+        return None
 
     @field_validator("sync_database_uri", mode="before")
     @classmethod

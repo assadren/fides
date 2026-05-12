@@ -45,18 +45,19 @@ const BrandLink = ({
 
   return (
     <Link
+      className="pc-brand-link"
       fontSize="8px"
       isExternal
       position={position}
       right={right}
       textDecoration="none"
       _hover={{ textDecoration: "none" }}
-      href="https://ethyca.com/"
+      href="https://ethyca.com/?utm_source=fides_consent&utm_medium=referral&utm_campaign=cmp_backlinks&utm_term=home"
       {...props}
     >
       <Space size={4}>
         <div style={{ color: "var(--fidesui-neutral-500)" }}>Powered by</div>
-        <div style={{ color: "var(--fidesui-minos)" }}>
+        <div style={{ color: "var(--fidesui-brand-minos)" }}>
           <EthycaLogoSvg />
         </div>
       </Space>

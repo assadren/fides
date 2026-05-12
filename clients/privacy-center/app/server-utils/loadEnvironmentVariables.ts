@@ -57,7 +57,7 @@ const defaultSecurityHeadersMode = (
 
 export const DEFAULT_ATTRIBUTION_ANCHOR_TEXT = "Consent powered by Ethyca";
 export const DEFAULT_ATTRIBUTION_DESTINATION_URL =
-  "https://www.ethyca.com/janus";
+  "https://www.ethyca.com/janus?utm_source=fides_consent&utm_medium=referral&utm_campaign=cmp_backlinks&utm_term=janus";
 
 const loadEnvironmentVariables = () => {
   // Load environment variables
@@ -93,6 +93,9 @@ const loadEnvironmentVariables = () => {
     ),
     ENABLE_EXTERNAL_TASK_PORTAL:
       process.env.FIDES_PRIVACY_CENTER__ENABLE_EXTERNAL_TASK_PORTAL === "true",
+    PRIVACY_REQUEST_DISCLOSURE_ENABLED:
+      process.env.FIDES_PRIVACY_CENTER__PRIVACY_REQUEST_DISCLOSURE_ENABLED ===
+      "true", // default: false
 
     // Overlay options
     DEBUG: process.env.FIDES_PRIVACY_CENTER__DEBUG

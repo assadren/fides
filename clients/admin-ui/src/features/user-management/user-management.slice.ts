@@ -4,7 +4,7 @@ import { utf8ToB64 } from "common/utils";
 import type { RootState } from "~/app/store";
 import { selectUser } from "~/features/auth";
 import { baseApi } from "~/features/common/api.slice";
-import { selectEnvFlags } from "~/features/common/features/features.slice";
+import { selectRbacEnabled } from "~/features/plus/plus.slice";
 import { rbacApi } from "~/features/rbac/rbac.slice";
 import {
   EditableMonitorConfig,
@@ -166,6 +166,13 @@ const userApi = baseApi.injectEndpoints({
       // Invalidates all queries that subscribe to this User `id` only
       invalidatesTags: ["User"],
     }),
+    reinviteUser: build.mutation<void, string>({
+      query: (id) => ({
+        url: `user/${id}/reinvite`,
+        method: "POST",
+      }),
+      invalidatesTags: ["User"],
+    }),
 
     // Data steward endpoints
     getUserManagedSystems: build.query<System[], string>({
@@ -247,10 +254,10 @@ const emptyScopes: ScopeRegistryEnum[] = [];
  */
 export const selectThisUsersScopes: (state: RootState) => ScopeRegistryEnum[] =
   createSelector(
-    [(RootState) => RootState, selectUser, selectEnvFlags],
-    (RootState, user, flags) => {
+    [(RootState) => RootState, selectUser, selectRbacEnabled],
+    (RootState, user, rbacEnabled) => {
       // When RBAC is enabled, prefer RBAC-derived permissions
-      if (flags.alphaRbac) {
+      if (rbacEnabled) {
         const rbacPermissions =
           rbacApi.endpoints.getMyRBACPermissions.select(undefined)(
             RootState,
@@ -321,6 +328,7 @@ export const {
   useCreateUserMutation,
   useEditUserMutation,
   useDeleteUserMutation,
+  useReinviteUserMutation,
   useUpdateUserPasswordMutation,
   useUpdateUserPermissionsMutation,
   useGetUserPermissionsQuery,

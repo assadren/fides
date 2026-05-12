@@ -6,12 +6,13 @@ import { ActionType, PrivacyRequestStatus } from "~/types/api";
 
 import { Rule } from "./types";
 
-export const statusPropMap: {
-  [key in PrivacyRequestStatus]: {
+export const statusPropMap: Record<
+  PrivacyRequestStatus,
+  {
     label: string;
     colorScheme: CUSTOM_TAG_COLOR;
-  };
-} = {
+  }
+> = {
   approved: {
     colorScheme: CUSTOM_TAG_COLOR.SUCCESS,
     label: "Approved",
@@ -68,6 +69,14 @@ export const statusPropMap: {
     colorScheme: CUSTOM_TAG_COLOR.MARBLE,
     label: "Pending External",
   },
+  awaiting_pre_approval: {
+    colorScheme: CUSTOM_TAG_COLOR.CAUTION,
+    label: "Awaiting External Review",
+  },
+  pre_approval_not_eligible: {
+    colorScheme: CUSTOM_TAG_COLOR.WARNING,
+    label: "Manual Review Required",
+  },
 };
 
 export const RequestStatusBadgeCell = ({
@@ -117,7 +126,11 @@ export const RequestDaysLeftCell = ({
 
   return (
     <BadgeCell
-      value={includeText ? `${daysLeft} days left` : daysLeft.toString()}
+      value={
+        includeText
+          ? `${Math.abs(daysLeft)} days ${daysLeft < 0 ? "overdue" : "left"}`
+          : daysLeft.toString()
+      }
       color={colorScheme}
     />
   );

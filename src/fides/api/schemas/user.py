@@ -1,13 +1,21 @@
+from __future__ import annotations
+
 import re
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import TYPE_CHECKING, Optional, Self
 
 from pydantic import ConfigDict, EmailStr, field_validator
 
 from fides.api.cryptography.cryptographic_util import decode_password
 from fides.api.schemas.base_class import FidesSchema
 from fides.api.schemas.oauth import AccessToken
+
+if TYPE_CHECKING:
+    from fides.api.models.fides_user import FidesUser
+    from fides.api.models.fides_user_invite import FidesUserInvite
+
+USERNAME_PATTERN = r"[a-zA-Z0-9._\-+@]{3,100}"
 
 
 class PrivacyRequestUser(FidesSchema):
@@ -32,9 +40,12 @@ class UserCreate(FidesSchema):
     @field_validator("username")
     @classmethod
     def validate_username(cls, username: str) -> str:
-        """Ensure username does not have spaces."""
-        if " " in username:
-            raise ValueError("Usernames cannot have spaces.")
+        """Ensure username contains only valid characters and is within length limits."""
+        if not re.fullmatch(USERNAME_PATTERN, username):
+            raise ValueError(
+                "Usernames must be 1-100 characters and may only contain "
+                "letters, numbers, and the following characters: . @ + _ - "
+            )
         return username
 
     @field_validator("password")
@@ -99,6 +110,21 @@ class UserResponse(FidesSchema):
     last_name: Optional[str] = None
     disabled: Optional[bool] = False
     disabled_reason: Optional[str] = None
+    email_verified_at: Optional[datetime] = None
+    has_invite: Optional[bool] = None
+    invite_expired: Optional[bool] = None
+
+    @classmethod
+    def from_user(
+        cls,
+        user: FidesUser,
+        invite: FidesUserInvite | None = None,
+    ) -> Self:
+        """Build a UserResponse from a FidesUser, optionally enriching with invite status."""
+        response = cls.model_validate(user)
+        response.has_invite = invite is not None
+        response.invite_expired = invite.is_expired() if invite else None
+        return response
 
 
 class UserLoginResponse(FidesSchema):
@@ -143,6 +169,27 @@ class UserUpdate(FidesSchema):
     last_name: Optional[str] = None
 
     model_config = ConfigDict(extra="ignore")
+
+
+class UserForgotPassword(FidesSchema):
+    """Request body for the forgot-password endpoint"""
+
+    email: EmailStr
+
+
+class UserResetPasswordWithToken(FidesSchema):
+    """Request body for resetting a password with a token"""
+
+    username: str
+    token: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, password: str) -> str:
+        """Add some password requirements"""
+        decoded_password = decode_password(password)
+        return UserCreate.validate_password(decoded_password)
 
 
 class DisabledReason(Enum):

@@ -806,6 +806,21 @@ def requeue_polling_tasks(self: DatabaseTask) -> None:
 
 EMBEDDED_EXECUTION_LOG_LIMIT = 1000
 
+# Display names for AuditLogAction values when rendering audit log rows in the
+# privacy request activity timeline. Keys must cover every AuditLogAction;
+# missing keys fall back to a raw `f"Request {action}"` rendering. A test in
+# tests/ops/service/privacy_request/test_request_service.py guards against drift.
+AUDIT_LOG_DISPLAY_NAMES = {
+    "approved": "Request approved",
+    "denied": "Request denied",
+    "email_sent": "Email sent",
+    "finished": "Request finished",
+    "policy_evaluated": "Request policy evaluated",
+    "pre_approval_webhook_triggered": "Triggered pre-approval webhooks",
+    "pre_approval_eligible": "Request auto-approved by pre-approval webhooks",
+    "pre_approval_not_eligible": "Request flagged for manual review by pre-approval webhooks",
+}
+
 
 def batch_execution_and_audit_logs_by_dataset(
     db: Session,
@@ -868,7 +883,9 @@ def batch_execution_and_audit_logs_by_dataset(
         if pr_id not in result:
             result[pr_id] = defaultdict(list)
 
-        dataset_name: str = log.dataset_name or f"Request {log.status}"
+        dataset_name: str = log.dataset_name or AUDIT_LOG_DISPLAY_NAMES.get(
+            log.status, f"Request {log.status}"
+        )
 
         if len(result[pr_id][dataset_name]) > EMBEDDED_EXECUTION_LOG_LIMIT - 1:
             continue

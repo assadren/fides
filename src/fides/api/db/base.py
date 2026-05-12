@@ -10,9 +10,11 @@ from fides.api.models.authentication_request import AuthenticationRequest
 from fides.api.models.chat_config import ChatConfig
 from fides.api.models.client import ClientDetail
 from fides.api.models.comment import Comment, CommentReference
+from fides.api.models.connection_config_saas_history import ConnectionConfigSaaSHistory
 from fides.api.models.connection_oauth_credentials import OAuthConfig
 from fides.api.models.connectionconfig import ConnectionConfig
 from fides.api.models.consent_automation import ConsentAutomation
+from fides.api.models.correspondence_metadata import CorrespondenceMetadata
 from fides.api.models.custom_asset import CustomAsset
 from fides.api.models.custom_connector_template import CustomConnectorTemplate
 from fides.api.models.custom_report import CustomReport
@@ -33,6 +35,7 @@ from fides.api.models.experience_notices import ExperienceNotices
 from fides.api.models.fides_cloud import FidesCloud
 from fides.api.models.fides_user import FidesUser
 from fides.api.models.fides_user_invite import FidesUserInvite
+from fides.api.models.fides_user_password_reset import FidesUserPasswordReset
 from fides.api.models.fides_user_permissions import FidesUserPermissions
 from fides.api.models.fides_user_respondent_email_verification import (
     FidesUserRespondentEmailVerification,
@@ -93,6 +96,7 @@ from fides.api.models.property import (
     Property,
 )
 from fides.api.models.questionnaire import ChatMessage, Questionnaire
+from fides.api.models.saas_config_version import SaaSConfigVersion
 from fides.api.models.saas_template_dataset import SaasTemplateDataset
 from fides.api.models.storage import StorageConfig
 from fides.api.models.system_compass_sync import SystemCompassSync
