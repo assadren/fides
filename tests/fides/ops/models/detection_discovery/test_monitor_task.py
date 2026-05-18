@@ -8,6 +8,7 @@ from fides.api.models.detection_discovery.monitor_task import (
     MonitorTaskType,
     TaskRunType,
     create_monitor_task_with_execution_log,
+    is_monitor_task_paused,
     update_monitor_task_with_execution_log,
 )
 from fides.api.models.worker_task import ExecutionLogStatus
@@ -508,3 +509,76 @@ class TestUpdateMonitorTaskWithExecutionLog:
                 status=ExecutionLogStatus.in_processing,
             )
         assert "Either celery_id or task_record must be provided" in str(exc)
+
+
+class TestMonitorTaskStopFeatures:
+    """Tests for stop-related features: group_id and is_monitor_task_paused."""
+
+    def test_group_id(self, db: Session, monitor_config) -> None:
+        """Tasks from the same classify operation share a group_id."""
+        group_id = "group-abc-123"
+        task_1 = MonitorTask.create(
+            db=db,
+            data={
+                "celery_id": "test-celery-group-1",
+                "action_type": MonitorTaskType.LLM_CLASSIFICATION.value,
+                "status": ExecutionLogStatus.pending.value,
+                "monitor_config_id": monitor_config.id,
+                "group_id": group_id,
+            },
+        )
+        task_2 = MonitorTask.create(
+            db=db,
+            data={
+                "celery_id": "test-celery-group-2",
+                "action_type": MonitorTaskType.LLM_CLASSIFICATION.value,
+                "status": ExecutionLogStatus.pending.value,
+                "monitor_config_id": monitor_config.id,
+                "group_id": group_id,
+            },
+        )
+
+        assert task_1.group_id == task_2.group_id == group_id
+
+        siblings = db.query(MonitorTask).filter(MonitorTask.group_id == group_id).all()
+        assert len(siblings) == 2
+
+        db.delete(task_1)
+        db.delete(task_2)
+        db.commit()
+
+    @pytest.mark.parametrize(
+        "status,expected",
+        [
+            pytest.param(
+                ExecutionLogStatus.awaiting_processing.value,
+                True,
+                id="awaiting_processing",
+            ),
+            pytest.param(ExecutionLogStatus.pending.value, False, id="pending"),
+            pytest.param(
+                ExecutionLogStatus.in_processing.value, False, id="in_processing"
+            ),
+            pytest.param(ExecutionLogStatus.complete.value, False, id="complete"),
+            pytest.param(ExecutionLogStatus.error.value, False, id="error"),
+        ],
+    )
+    def test_is_paused(self, db: Session, monitor_config, status, expected) -> None:
+        celery_id = f"celery-is-paused-{status}"
+        task = MonitorTask.create(
+            db=db,
+            data={
+                "celery_id": celery_id,
+                "action_type": MonitorTaskType.LLM_CLASSIFICATION.value,
+                "status": status,
+                "monitor_config_id": monitor_config.id,
+            },
+        )
+
+        assert is_monitor_task_paused(db, celery_id) is expected
+
+        db.delete(task)
+        db.commit()
+
+    def test_is_paused_unknown_celery_id(self, db: Session) -> None:
+        assert is_monitor_task_paused(db, "non-existent-celery-id") is False
