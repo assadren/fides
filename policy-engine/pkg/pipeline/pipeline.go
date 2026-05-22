@@ -25,11 +25,14 @@ import (
 // TableRef is a (collection, qualified_name) pair extracted from SQL.
 // QualifiedName is used as the identifier on UNCONFIGURED_DATASET gaps
 // when Collection does not resolve to a known dataset.
+// Schema is the SQL schema (BQ dataset, Snowflake schema) used to
+// disambiguate collections that share the same name across datasets.
 // Columns holds the column names accessed from this table (extracted
 // by the Python SQL parser). An empty list means SELECT * or parse
 // failure — the pipeline falls back to all field categories.
 type TableRef struct {
 	Collection    string   `json:"collection"`
+	Schema        string   `json:"schema,omitempty"`
 	QualifiedName string   `json:"qualified_name,omitempty"`
 	Columns       []string `json:"columns,omitempty"`
 }
@@ -187,7 +190,17 @@ func resolveTables(
 
 	for _, t := range tables {
 		coll := strings.ToLower(t.Collection)
-		if key, ok := tableIndex[coll]; ok {
+		// Try schema-qualified lookup first to disambiguate collections
+		// that share the same name across datasets (e.g. two datasets
+		// both having a "transactions" collection).
+		key, ok := "", false
+		if t.Schema != "" {
+			key, ok = tableIndex[strings.ToLower(t.Schema)+"."+coll]
+		}
+		if !ok {
+			key, ok = tableIndex[coll]
+		}
+		if ok {
 			if !seenKey[key] {
 				seenKey[key] = true
 				keys = append(keys, key)
@@ -275,14 +288,12 @@ func filterViolationsThroughPolicies(
 		dataUses := dataUsesForDatasetPurposes(v.DatasetPurposes, purposeIndex)
 
 		// Enrich the violation with data_use (first resolved use from
-		// the dataset's purposes) and control type, matching the Python
-		// service layer's _resolve_data_uses step.
+		// the dataset's purposes), matching the Python service layer's
+		// _resolve_data_uses step.
 		if len(dataUses) > 0 {
 			du := dataUses[0]
 			v.DataUse = &du
 		}
-		control := "purpose_restriction"
-		v.Control = &control
 
 		var collection string
 		if v.Collection != nil {
@@ -311,9 +322,19 @@ func filterViolationsThroughPolicies(
 			v.SuppressedByPolicy = &key
 			// EvaluatePolicies deliberately only returns Action on
 			// DENY decisions, so look up the decisive ALLOW policy's
-			// action ourselves for auditability.
-			if action := findPolicyAction(policies, key); action != nil {
-				v.SuppressedByAction = action
+			// action and control ourselves for auditability.
+			for _, p := range policies {
+				if p.Key == key {
+					if p.Action != nil {
+						action := *p.Action
+						v.SuppressedByAction = &action
+					}
+					if p.Control != "" {
+						ctrl := p.Control
+						v.Control = &ctrl
+					}
+					break
+				}
 			}
 		}
 		out = append(out, v)
@@ -341,17 +362,64 @@ func dataUsesForDatasetPurposes(
 	return out
 }
 
-// findPolicyAction returns the Action of the policy with the matching
-// key, or nil if not found or it has no action. Used when the pipeline
-// wants to attribute an ALLOW suppression to the policy's action (the
-// engine itself only returns Action on DENY decisions by design).
-func findPolicyAction(policies []pbac.AccessPolicy, key string) *pbac.PolicyAction {
-	for _, p := range policies {
-		if p.Key == key {
-			return p.Action
+// resolveDataCategories looks up data categories for the columns accessed
+// in a specific dataset collection. If no specific columns were extracted
+// (SELECT * or parse failure), returns all categories from all fields in
+// the collection.
+func resolveDataCategories(
+	datasetKey string,
+	collection string,
+	columnsByDataset map[string]map[string][]string,
+	fieldCategories map[string]map[string][]string,
+) []string {
+	if fieldCategories == nil || collection == "" {
+		return nil
+	}
+
+	// Try schema-qualified lookup first for disambiguation
+	qualified := strings.ToLower(datasetKey) + "." + collection
+	collFields, ok := fieldCategories[qualified]
+	if !ok {
+		collFields, ok = fieldCategories[collection]
+	}
+	if !ok || len(collFields) == 0 {
+		return nil
+	}
+
+	var columns []string
+	if dsCols, ok := columnsByDataset[datasetKey]; ok {
+		columns = dsCols[collection]
+	}
+
+	catSet := map[string]bool{}
+
+	if len(columns) == 0 {
+		// SELECT * or no columns extracted — use all field categories
+		for _, cats := range collFields {
+			for _, c := range cats {
+				catSet[c] = true
+			}
+		}
+	} else {
+		for _, col := range columns {
+			if cats, ok := collFields[col]; ok {
+				for _, c := range cats {
+					catSet[c] = true
+				}
+			}
 		}
 	}
-	return nil
+
+	if len(catSet) == 0 {
+		return nil
+	}
+
+	out := make([]string, 0, len(catSet))
+	for c := range catSet {
+		out = append(out, c)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // resolveDataCategories looks up data categories for the columns accessed
