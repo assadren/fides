@@ -1,4 +1,14 @@
-import { Button, Card, Flex, Form, Input, Select, Space, Spin } from "fidesui";
+import {
+  Button,
+  Card,
+  Flex,
+  Form,
+  Icons,
+  Input,
+  Select,
+  Space,
+  Spin,
+} from "fidesui";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -15,11 +25,39 @@ import {
 } from "~/types/api";
 
 import DeletePropertyModal from "./DeletePropertyModal";
+import {
+  PrivacyCenterConfigSection,
+  PrivacyCenterConfigValue,
+} from "./privacy-center-config/PrivacyCenterConfigSection";
+
+const PCConfigSectionAdapter = ({
+  propertyId,
+  value,
+  onChange,
+  onDeleteImmediately,
+  onSaveImmediately,
+}: {
+  propertyId: string;
+  value?: PrivacyCenterConfigValue | null;
+  onChange?: (next: PrivacyCenterConfigValue) => void;
+  onDeleteImmediately?: (nextConfig: PrivacyCenterConfigValue) => Promise<void>;
+  onSaveImmediately?: (nextConfig: PrivacyCenterConfigValue) => Promise<void>;
+}) => (
+  <PrivacyCenterConfigSection
+    propertyId={propertyId}
+    value={value ?? null}
+    onChange={(next) => onChange?.(next)}
+    onDeleteImmediately={onDeleteImmediately}
+    onSaveImmediately={onSaveImmediately}
+  />
+);
 
 interface Props {
   property?: Property;
   isLoading?: boolean;
   handleSubmit: (values: FormValues) => Promise<void>;
+  onDeleteAction?: (nextConfig: PrivacyCenterConfigValue) => Promise<void>;
+  onSaveAction?: (nextConfig: PrivacyCenterConfigValue) => Promise<void>;
 }
 
 export interface FormValues {
@@ -29,9 +67,16 @@ export interface FormValues {
   paths: Array<string>;
   messaging_templates?: Array<MinimalMessagingTemplate> | null;
   experiences: Array<MinimalPrivacyExperienceConfig>;
+  privacy_center_config?: PrivacyCenterConfigValue | null;
 }
 
-export const PropertyForm = ({ property, isLoading, handleSubmit }: Props) => {
+export const PropertyForm = ({
+  property,
+  isLoading,
+  handleSubmit,
+  onDeleteAction,
+  onSaveAction,
+}: Props) => {
   const router = useRouter();
   const [form] = Form.useForm<FormValues>();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -83,6 +128,7 @@ export const PropertyForm = ({ property, isLoading, handleSubmit }: Props) => {
         experiences: [],
         messaging_templates: [],
         paths: [],
+        privacy_center_config: null,
       },
     [property],
   );
@@ -93,7 +139,7 @@ export const PropertyForm = ({ property, isLoading, handleSubmit }: Props) => {
       form.setFieldsValue({
         ...property,
         messaging_templates: property.messaging_templates ?? undefined,
-      });
+      } as Parameters<typeof form.setFieldsValue>[0]);
     }
   }, [property, form]);
 
@@ -150,8 +196,43 @@ export const PropertyForm = ({ property, isLoading, handleSubmit }: Props) => {
                   data-testid="input-type"
                 />
               </Form.Item>
-              <Form.Item name="paths" hidden noStyle>
-                <Input />
+              <Form.Item
+                label="Privacy center paths"
+                tooltip="Paths under your privacy center this property responds to. Each path must be unique across properties."
+              >
+                <Form.List name="paths">
+                  {(fields, { add, remove }) => (
+                    <Flex vertical>
+                      {fields.map((field) => (
+                        <Flex className="my-1" key={field.key}>
+                          <Form.Item name={field.name} className="mb-0 grow">
+                            <Input placeholder="/privacy" />
+                          </Form.Item>
+                          <Button
+                            aria-label="Remove path"
+                            className="ml-2"
+                            icon={<Icons.TrashCan />}
+                            onClick={() => remove(field.name)}
+                          />
+                        </Flex>
+                      ))}
+                      <Button className="mt-2" onClick={() => add("")}>
+                        Add path
+                      </Button>
+                    </Flex>
+                  )}
+                </Form.List>
+              </Form.Item>
+              <Form.Item
+                name="privacy_center_config"
+                label="Privacy center config"
+                valuePropName="value"
+              >
+                <PCConfigSectionAdapter
+                  propertyId={property?.id ?? ""}
+                  onDeleteImmediately={onDeleteAction}
+                  onSaveImmediately={onSaveAction}
+                />
               </Form.Item>
               <Form.Item
                 name="experiences"

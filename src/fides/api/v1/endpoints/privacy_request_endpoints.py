@@ -24,7 +24,7 @@ from loguru import logger
 from pydantic import Field
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Query, Session, selectinload
-from starlette.responses import StreamingResponse
+from starlette.responses import Response, StreamingResponse
 from starlette.status import (
     HTTP_200_OK,
     HTTP_400_BAD_REQUEST,
@@ -88,6 +88,7 @@ from fides.api.schemas.privacy_request import (
     DenyPrivacyRequestSelection,
     ExecutionLogDetailResponse,
     FilteredPrivacyRequestResults,
+    HistoricalPrivacyRequestImport,
     LogEntry,
     ManualWebhookData,
     PrivacyRequestAccessResults,
@@ -128,6 +129,7 @@ from fides.common.scope_registry import (
     PRIVACY_REQUEST_CREATE,
     PRIVACY_REQUEST_DELETE,
     PRIVACY_REQUEST_EMAIL_INTEGRATIONS_SEND,
+    PRIVACY_REQUEST_IMPORT,
     PRIVACY_REQUEST_NOTIFICATIONS_CREATE_OR_UPDATE,
     PRIVACY_REQUEST_NOTIFICATIONS_READ,
     PRIVACY_REQUEST_READ,
@@ -143,6 +145,7 @@ from fides.common.urn_registry import (
     PRIVACY_REQUEST_AUTHENTICATED,
     PRIVACY_REQUEST_BATCH_EMAIL_SEND,
     PRIVACY_REQUEST_BULK_FINALIZE,
+    PRIVACY_REQUEST_BULK_IMPORT,
     PRIVACY_REQUEST_BULK_RETRY,
     PRIVACY_REQUEST_BULK_SOFT_DELETE,
     PRIVACY_REQUEST_CANCEL,
@@ -178,9 +181,7 @@ from fides.service.dataset.dataset_config_service import (
 )
 from fides.service.messaging.messaging_service import MessagingService
 from fides.service.privacy_request.diagnostics import (
-    DefaultStorageNotConfiguredError,
-    PrivacyRequestDiagnosticsExportResponse,
-    export_privacy_request_diagnostics,
+    build_diagnostics_zip,
 )
 from fides.service.privacy_request.privacy_request_service import (
     PrivacyRequestService,
@@ -287,6 +288,40 @@ def create_privacy_request_authenticated(
 
     return privacy_request_service.create_bulk_privacy_requests(
         data, authenticated=True, user_id=client.user_id
+    )
+
+
+@router.post(
+    PRIVACY_REQUEST_BULK_IMPORT,
+    status_code=HTTP_200_OK,
+    response_model=BulkPostPrivacyRequests,
+)
+def import_historical_privacy_requests(
+    *,
+    privacy_request_service: PrivacyRequestService = Depends(
+        get_privacy_request_service
+    ),
+    client: ClientDetail = Security(
+        verify_oauth_client,
+        scopes=[PRIVACY_REQUEST_IMPORT],
+    ),
+    data: Annotated[
+        List[HistoricalPrivacyRequestImport],
+        Field(max_length=BULK_PRIVACY_REQUEST_BATCH_SIZE),
+    ],  # type: ignore
+) -> BulkPostPrivacyRequests:
+    """
+    Bulk-import historical, already-completed privacy requests from another Fides
+    deployment for migration purposes. Each record must have a terminal status
+    (complete, denied, canceled, error).
+
+    Bypasses all processing pipeline side effects: no Celery scheduling, no
+    notifications, no webhooks, no identity verification, no duplicate detection,
+    no Redis caching of identity/encryption. Records are written directly to the
+    database with `source="Import"` and a single AuditLog entry per record.
+    """
+    return privacy_request_service.import_historical_privacy_requests(
+        data, imported_by=client.user_id
     )
 
 
@@ -466,6 +501,7 @@ def get_request_status(
     external_id: Optional[str] = None,
     location: Optional[str] = None,
     action_type: Optional[ActionType] = None,
+    source: Optional[List[PrivacyRequestSource]] = FastAPIQuery(default=None),  # type:ignore
     verbose: Optional[bool] = False,
     include_identities: Optional[bool] = False,
     include_custom_privacy_request_fields: Optional[bool] = False,
@@ -503,6 +539,7 @@ def get_request_status(
         external_id=external_id,
         location=location,
         action_type=action_type,
+        source=source,
         verbose=verbose,
         include_identities=include_identities,
         include_custom_privacy_request_fields=include_custom_privacy_request_fields,
@@ -592,32 +629,44 @@ def get_request_status_logs(
 @router.get(
     PRIVACY_REQUEST_DIAGNOSTICS,
     dependencies=[Security(verify_oauth_client, scopes=[PRIVACY_REQUEST_READ])],
-    response_model=PrivacyRequestDiagnosticsExportResponse,
     status_code=HTTP_200_OK,
+    response_class=Response,
+    responses={
+        200: {
+            "content": {"application/zip": {}},
+            "description": "ZIP file containing diagnostics.json",
+        }
+    },
 )
 def get_privacy_request_diagnostics_report(
     privacy_request_id: str,
     *,
     db: Session = Depends(deps.get_db),
-) -> PrivacyRequestDiagnosticsExportResponse:
+) -> Response:
     """
-    Export a non-PII diagnostics snapshot for a single privacy request and return a download URL.
-
-    This report intentionally excludes any fields that could contain PII.
+    Export a non-PII diagnostics snapshot for a single privacy request
+    as a downloadable ZIP file.
     """
-
     try:
-        return export_privacy_request_diagnostics(privacy_request_id, db)
+        buf = build_diagnostics_zip(privacy_request_id, db)
     except PrivacyRequestNotFound:
         raise HTTPException(
             status_code=HTTP_404_NOT_FOUND,
             detail=f"No privacy request found with id '{privacy_request_id}'.",
         )
-    except DefaultStorageNotConfiguredError as exc:
-        raise HTTPException(
-            status_code=HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=exc.detail,
-        )
+
+    # Sanitize the ID before embedding in a header to guard against injection
+    # if the ID format ever changes beyond safe UUID characters.
+    safe_id = "".join(c for c in privacy_request_id if c.isalnum() or c in "-_")
+    filename = f"diagnostics-{safe_id}.zip"
+    content = buf.getvalue()
+    return Response(
+        content=content,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
 
 
 @router.get(

@@ -1,3 +1,4 @@
+import contextvars
 from typing import Any, ContextManager, Dict, List, Optional
 
 import celery_redis_cluster_backend  # type: ignore[import-untyped]  # noqa: F401 - registers redis+cluster/rediss+cluster backends
@@ -32,6 +33,11 @@ DISCOVERY_MONITORS_DETECTION_QUEUE_NAME = "fidesplus.discovery_monitors_detectio
 DISCOVERY_MONITORS_CLASSIFICATION_QUEUE_NAME = "fidesplus.discovery_monitors_classification"  # This queue is used for running discovery monitors classification tasks
 DISCOVERY_MONITORS_PROMOTION_QUEUE_NAME = "fidesplus.discovery_monitors_promotion"  # This queue is used for running discovery monitors promotion tasks
 BULK_CONSENT_IMPORT_QUEUE_NAME = "fidesplus.bulk_consent_import"  # This queue is used for bulk importing pre-verified consent records
+DATAHUB_QUEUE_NAME = (
+    "fidesplus.datahub"  # This queue is used for syncing Fides datasets with Datahub
+)
+PRIVACY_ASSESSMENTS_QUEUE_NAME = "fidesplus.privacy_assessments"  # This queue is used for running privacy assessment evaluation tasks
+QUESTIONNAIRES_QUEUE_NAME = "fidesplus.questionnaires"  # This queue is used for processing questionnaire chat replies
 
 
 NEW_SESSION_RETRIES = 5
@@ -89,6 +95,7 @@ class DatabaseTask(Task):  # pylint: disable=W0223
                 pool_size=CONFIG.database.task_engine_pool_size,
                 max_overflow=CONFIG.database.task_engine_max_overflow,
                 pool_pre_ping=CONFIG.database.task_engine_pool_pre_ping,
+                pool_recycle=CONFIG.database.pool_recycle,
             )
 
         # same for the sessionmaker
@@ -204,6 +211,11 @@ def _propagate_request_id(headers: Dict[str, Any], **kwargs: Any) -> None:
         headers["request_id"] = request_id
 
 
+_task_log_context: contextvars.ContextVar = contextvars.ContextVar(
+    "_task_log_context", default=None
+)
+
+
 @task_prerun.connect
 def _restore_request_id(task: Task, **kwargs: Any) -> None:
     """Restore request_id from the task headers into the worker's ContextVar.
@@ -214,6 +226,9 @@ def _restore_request_id(task: Task, **kwargs: Any) -> None:
     request_id = getattr(task.request, "request_id", None)
     if request_id is not None:
         set_request_id(request_id)
+        ctx = logger.contextualize(request_id=request_id)
+        ctx.__enter__()
+        _task_log_context.set(ctx)
 
 
 @task_postrun.connect
@@ -224,6 +239,10 @@ def _clear_request_id(**kwargs: Any) -> None:
     a request_id from Task A would leak into Task B if Task B was dispatched
     without a request_id header.
     """
+    ctx = _task_log_context.get()
+    if ctx is not None:
+        ctx.__exit__(None, None, None)
+        _task_log_context.set(None)
     set_request_id(None)
 
 

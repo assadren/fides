@@ -410,7 +410,6 @@ import type { PrivacyPreferenceStats } from "./models/PrivacyPreferenceStats";
 import type { PrivacyRequestAccessResults } from "./models/PrivacyRequestAccessResults";
 import type { PrivacyRequestBulkSelection } from "./models/PrivacyRequestBulkSelection";
 import type { PrivacyRequestCreateExtended } from "./models/PrivacyRequestCreateExtended";
-import type { PrivacyRequestDiagnosticsExportResponse } from "./models/PrivacyRequestDiagnosticsExportResponse";
 import type { PrivacyRequestDRPStatusResponse } from "./models/PrivacyRequestDRPStatusResponse";
 import type { PrivacyRequestFieldsResponse } from "./models/PrivacyRequestFieldsResponse";
 import type { PrivacyRequestFilter } from "./models/PrivacyRequestFilter";
@@ -8350,41 +8349,6 @@ export type getRequestStatusLogsApiV1PrivacyRequestPrivacyRequestIdLogGetRespons
 export type getRequestStatusLogsApiV1PrivacyRequestPrivacyRequestIdLogGetResponse =
   getRequestStatusLogsApiV1PrivacyRequestPrivacyRequestIdLogGetResponses[keyof getRequestStatusLogsApiV1PrivacyRequestPrivacyRequestIdLogGetResponses];
 
-export type getPrivacyRequestDiagnosticsReportApiV1PrivacyRequestPrivacyRequestIdDiagnosticsGetData =
-  {
-    body?: never;
-    path: {
-      /**
-       * Privacy Request Id
-       */
-      privacy_request_id: string;
-    };
-    query?: never;
-    url: "/api/v1/privacy-request/{privacy_request_id}/diagnostics";
-  };
-
-export type getPrivacyRequestDiagnosticsReportApiV1PrivacyRequestPrivacyRequestIdDiagnosticsGetErrors =
-  {
-    /**
-     * Validation Error
-     */
-    422: HTTPValidationError;
-  };
-
-export type getPrivacyRequestDiagnosticsReportApiV1PrivacyRequestPrivacyRequestIdDiagnosticsGetError =
-  getPrivacyRequestDiagnosticsReportApiV1PrivacyRequestPrivacyRequestIdDiagnosticsGetErrors[keyof getPrivacyRequestDiagnosticsReportApiV1PrivacyRequestPrivacyRequestIdDiagnosticsGetErrors];
-
-export type getPrivacyRequestDiagnosticsReportApiV1PrivacyRequestPrivacyRequestIdDiagnosticsGetResponses =
-  {
-    /**
-     * Successful Response
-     */
-    200: PrivacyRequestDiagnosticsExportResponse;
-  };
-
-export type getPrivacyRequestDiagnosticsReportApiV1PrivacyRequestPrivacyRequestIdDiagnosticsGetResponse =
-  getPrivacyRequestDiagnosticsReportApiV1PrivacyRequestPrivacyRequestIdDiagnosticsGetResponses[keyof getPrivacyRequestDiagnosticsReportApiV1PrivacyRequestPrivacyRequestIdDiagnosticsGetResponses];
-
 export type getPrivacyRequestNotificationInfoApiV1PrivacyRequestNotificationGetData =
   {
     body?: never;
@@ -12710,7 +12674,7 @@ export type listAccessPoliciesApiV1PlusAccessPolicyGetData = {
      */
     size?: number;
   };
-  url: "/api/v1/plus/access-policy";
+  url: "/api/v1/plus/access-policies";
 };
 
 export type listAccessPoliciesApiV1PlusAccessPolicyGetErrors = {
@@ -12737,7 +12701,7 @@ export type createAccessPolicyApiV1PlusAccessPolicyPostData = {
   body: AccessPolicyCreate;
   path?: never;
   query?: never;
-  url: "/api/v1/plus/access-policy";
+  url: "/api/v1/plus/access-policies";
 };
 
 export type createAccessPolicyApiV1PlusAccessPolicyPostErrors = {
@@ -12769,7 +12733,7 @@ export type deleteAccessPolicyApiV1PlusAccessPolicyAccessPolicyIdDeleteData = {
     access_policy_id: string;
   };
   query?: never;
-  url: "/api/v1/plus/access-policy/{access_policy_id}";
+  url: "/api/v1/plus/access-policies/{access_policy_id}";
 };
 
 export type deleteAccessPolicyApiV1PlusAccessPolicyAccessPolicyIdDeleteErrors =
@@ -12803,7 +12767,7 @@ export type getAccessPolicyApiV1PlusAccessPolicyAccessPolicyIdGetData = {
     access_policy_id: string;
   };
   query?: never;
-  url: "/api/v1/plus/access-policy/{access_policy_id}";
+  url: "/api/v1/plus/access-policies/{access_policy_id}";
 };
 
 export type getAccessPolicyApiV1PlusAccessPolicyAccessPolicyIdGetErrors = {
@@ -12835,7 +12799,7 @@ export type updateAccessPolicyApiV1PlusAccessPolicyAccessPolicyIdPatchData = {
     access_policy_id: string;
   };
   query?: never;
-  url: "/api/v1/plus/access-policy/{access_policy_id}";
+  url: "/api/v1/plus/access-policies/{access_policy_id}";
 };
 
 export type updateAccessPolicyApiV1PlusAccessPolicyAccessPolicyIdPatchErrors = {

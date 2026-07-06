@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime, timezone
 from functools import update_wrapper
@@ -702,7 +703,11 @@ async def extract_token_and_load_client_async(
         raise AuthenticationError(detail="Authentication Failure")
 
     try:
-        token_data = json.loads(extract_payload(authorization, get_encryption_key()))
+        loop = asyncio.get_running_loop()
+        payload = await loop.run_in_executor(
+            None, extract_payload, authorization, get_encryption_key()
+        )
+        token_data = await loop.run_in_executor(None, json.loads, payload)
     except (JoseError, ValueError) as exc:
         logger.debug("Unable to parse auth token.")
         raise AuthorizationError(detail="Not Authorized for this action") from exc
@@ -909,7 +914,12 @@ def verify_client_can_assign_scopes(
 
     # If they don't have all scopes via direct assignment or roles, check individual scopes
     if not has_scope_via_role:
-        unauthorized_scopes = set(scopes) - set(token_scopes)
+        # Combine direct token scopes with role-derived scopes to find
+        # which specific scope(s) the user is actually missing
+        assigned_roles = token_data.get(JWE_PAYLOAD_ROLES, [])
+        role_scopes = get_scopes_from_roles(assigned_roles)
+        effective_scopes = set(token_scopes) | set(role_scopes)
+        unauthorized_scopes = set(scopes) - effective_scopes
 
         if unauthorized_scopes:
             raise HTTPException(
